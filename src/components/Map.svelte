@@ -21,10 +21,10 @@ onMount(() => {
     }).addTo(map);
 
     var heat = L.heatLayer([
-    [50.073, 14.4178, 0.2], // lat, lng, intensity
-    [50.063, 14.5178, 0.5]
-], {radius: 25}).addTo(map);
-});
+        [50.073, 14.4178, 0.2], // lat, lng, intensity
+        [50.063, 14.5178, 0.5]
+    ], {radius: 25}).addTo(map);
+    });
 </script>
 
 <style>
