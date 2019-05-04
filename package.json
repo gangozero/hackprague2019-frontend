@@ -18,5 +18,10 @@
     "dev": "run-p start:dev autobuild",
     "start": "sirv public",
     "start:dev": "sirv public --dev"
+  },
+  "dependencies": {
+    "leaflet": "^1.4.0",
+    "leaflet-heatmap": "^1.0.0",
+    "leaflet.heat": "^0.2.0"
   }
 }

@@ -1,11 +1,6 @@
 <script>
-	export let name;
+	import Map from "./components/Map.svelte";
+	//18/50.07326/14.41786
 </script>
 
-<style>
-	h1 {
-		color: purple;
-	}
-</style>
-
-<h1>Hello {name}!</h1>
+<Map lat="50.07326" lon="14.41786" zoom="18"/>
