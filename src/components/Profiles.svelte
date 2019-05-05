@@ -2,7 +2,7 @@
 
 import { onMount } from 'svelte';
 import {callAPI} from './../helpers';
-import {category,personal,mode} from './../state';
+import {category,personal,mode,edit} from './../state';
 
 let listCall = callAPI('profile');
 
@@ -45,19 +45,26 @@ h3{
         <option value={false}>Collective</option>
     </select>
 
-
+    {#if $edit}
     <select bind:value={$mode}>
         <option value={true}>+1</option>
         <option value={false}>-1</option>
     </select>
+    {/if}
 
     <h3>Category</h3>
     {#await listCall}
         Loading
     {:then list}
+    {#if $edit}
         {#each list as item}
-            <div><input type="radio" bind:group={$category} value="{item.id}"> - {item.name}</div>
+            <div><input type="radio" bind:group={$category} value="{item.id}"> {item.name}</div>
         {/each}
+    {:else}
+        {#each list as item}
+            <div><input type="checkbox" bind:group={$category} value="{item.id}"> {item.name}</div>
+        {/each}
+    {/if}
     {/await}
         
 </div>

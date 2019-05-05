@@ -98,6 +98,14 @@ var app = (function () {
 		else node.setAttribute(attribute, value);
 	}
 
+	function get_binding_group_value(group) {
+		const value = [];
+		for (let i = 0; i < group.length; i += 1) {
+			if (group[i].checked) value.push(group[i].__value);
+		}
+		return value;
+	}
+
 	function children(element) {
 		return Array.from(element.childNodes);
 	}
@@ -480,6 +488,7 @@ var app = (function () {
 	const category = writable('06c711ef-fb86-41b9-b0c3-358fbe376ea9');
 	const mode = writable(true);
 	const personal = writable(true);
+	const edit = writable(false);
 
 	var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -14441,7 +14450,7 @@ var app = (function () {
 				div = element("div");
 				div.id = "map";
 				div.className = "svelte-1hhoust";
-				add_location(div, file, 79, 0, 2056);
+				add_location(div, file, 143, 0, 3381);
 			},
 
 			l: function claim(nodes) {
@@ -14464,19 +14473,98 @@ var app = (function () {
 		};
 	}
 
-	function instance($$self, $$props, $$invalidate) {
-		let $mode, $personal, $category;
+	function getRadius(currentZoom){
+	var radius;
+	if (currentZoom === 7){
+	    radius=2;
+	}
+	else if (currentZoom === 8) {
+	    radius = 4;
+	}
+	else if (currentZoom === 9) {
+	    radius = 6;
+	}
+	else if (currentZoom === 10) {
+	    radius = 8;
+	}
+	else if (currentZoom === 11) {
+	    radius = 10;
+	}
+	else if (currentZoom === 12) {
+	    radius = 12;
+	}
+	else if (currentZoom === 13) {
+	    radius = 14;
+	}
+	else if (currentZoom === 14) {
+	    radius = 16;
+	}
+	else if (currentZoom === 15) {
+	    radius = 18;
+	}
+	else if (currentZoom === 16) {
+	    radius = 20;
+	}
+	else if (currentZoom === 17) {
+	    radius = 22;
+	}
+	else if (currentZoom === 18) {
+	    radius = 24;
+	}
+	return radius;
+	}
 
+	function instance($$self, $$props, $$invalidate) {
+		let $category, $edit, $mode, $personal;
+
+		validate_store(category, 'category');
+		subscribe($$self, category, $$value => { $category = $$value; $$invalidate('$category', $category); });
+		validate_store(edit, 'edit');
+		subscribe($$self, edit, $$value => { $edit = $$value; $$invalidate('$edit', $edit); });
 		validate_store(mode, 'mode');
 		subscribe($$self, mode, $$value => { $mode = $$value; $$invalidate('$mode', $mode); });
 		validate_store(personal, 'personal');
 		subscribe($$self, personal, $$value => { $personal = $$value; $$invalidate('$personal', $personal); });
-		validate_store(category, 'category');
-		subscribe($$self, category, $$value => { $category = $$value; $$invalidate('$category', $category); });
 
 		
 
 	let { lat = 0, lon = 0, zoom = 10 } = $$props;
+
+	let map = null;
+
+
+	let hlayers = [];
+	const load_heatmap = () => {
+	    if(map === null) return false;
+	    hlayers.forEach(l=>map.removeLayer(l));
+	    $$invalidate('hlayers', hlayers = []);
+
+	    let catlist = [];
+	    
+	    if($category instanceof Array) 
+	        catlist = $category;
+	    else
+	        catlist = [$category];
+
+	    catlist.forEach((ctgry)=>{
+	        helpers_1(`grade/${ctgry}${utype}`).then(data => {
+	            let positive = [];
+	            let negative = [];
+	            data.forEach((item)=>{
+	                if(item.grade == 1)
+	                    positive.push([item.lat,item.lon,0.7]);
+	                else
+	                    negative.push([item.lat,item.lon,0.7]);
+	            });
+	            hlayers.push(leafletSrc.heatLayer(positive, {radius: getRadius(map.getZoom()), gradient:{1: 'lime'}}));
+	            hlayers.push(leafletSrc.heatLayer(negative, {radius: getRadius(map.getZoom()), gradient:{1: 'red'}}));
+
+	            hlayers.forEach(l=>l.addTo(map));
+	        });
+	    });
+	}; 
+
+
 
 	let utype = '1';
 	personal.subscribe((v)=>{
@@ -14486,13 +14574,20 @@ var app = (function () {
 	        $$invalidate('utype', utype='');
 	});
 
+	category.subscribe(v=>{
+	    load_heatmap();
+	});
+
+
 	///api/v1/grade/06c711ef-fb86-41b9-b0c3-358fbe376ea9/user1
 
 
 	onMount(() => {
-		let map = leafletSrc.map('map');
+		$$invalidate('map', map = leafletSrc.map('map'));
 	    map.setView([lat, lon], zoom);
 	    map.on('click', e=>{
+	        if(!$edit) return false;
+
 	        let sample ={
 	            lat: e.latlng.lat,
 	            lon: e.latlng.lng,
@@ -14500,6 +14595,9 @@ var app = (function () {
 	            user_id: ($personal ? '1' : 'user_'+Math.round(Math.random()*100))
 	        };
 	        helpers_1(`grade/${$category}`,sample).then(v=>load_heatmap(map));
+	    });
+	    map.on('zoomend', e=>{
+	        hlayers.forEach(l=>l.setOptions({radius: getRadius(map.getZoom())}).redraw());
 	    });
 
 	    let attribution = 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, , Imagery © <a href="https://here.com">HERE</a>';
@@ -14511,30 +14609,8 @@ var app = (function () {
 	    maxZoom: 18,
 	    attribution: attribution
 	    }).addTo(map);
-
-	    load_heatmap(map);
+	    load_heatmap();
 	});
-
-	let hlayers = [];
-	const load_heatmap = (map) => {
-	    helpers_1(`grade/${$category}${utype}`).then(data => {
-	    
-	        hlayers.forEach(l=>map.removeLayer(l));
-
-	        let positive = [];
-	        let negative = [];
-	        data.forEach((item)=>{
-	            if(item.grade == 1)
-	                positive.push([item.lat,item.lon,0.7]);
-	            else
-	                negative.push([item.lat,item.lon,0.7]);
-	        });
-	        hlayers.push(leafletSrc.heatLayer(positive, {radius: 25, gradient:{1: 'lime'}}));
-	        hlayers.push(leafletSrc.heatLayer(negative, {radius: 25, gradient:{1: 'red'}}));
-
-	        hlayers.forEach(l=>l.addTo(map));
-	    });
-	};
 
 		$$self.$set = $$props => {
 			if ('lat' in $$props) $$invalidate('lat', lat = $$props.lat);
@@ -14592,10 +14668,60 @@ var app = (function () {
 
 	const file$1 = "src/components/Profiles.svelte";
 
+	function get_each_context_1(ctx, list, i) {
+		const child_ctx = Object.create(ctx);
+		child_ctx.item = list[i];
+		return child_ctx;
+	}
+
 	function get_each_context(ctx, list, i) {
 		const child_ctx = Object.create(ctx);
 		child_ctx.item = list[i];
 		return child_ctx;
+	}
+
+	// (48:4) {#if $edit}
+	function create_if_block_1(ctx) {
+		var select, option0, option1, dispose;
+
+		return {
+			c: function create() {
+				select = element("select");
+				option0 = element("option");
+				option0.textContent = "+1";
+				option1 = element("option");
+				option1.textContent = "-1";
+				option0.__value = true;
+				option0.value = option0.__value;
+				add_location(option0, file$1, 49, 8, 885);
+				option1.__value = false;
+				option1.value = option1.__value;
+				add_location(option1, file$1, 50, 8, 926);
+				if (ctx.$mode === void 0) add_render_callback(() => ctx.select_change_handler_1.call(select));
+				add_location(select, file$1, 48, 4, 849);
+				dispose = listen(select, "change", ctx.select_change_handler_1);
+			},
+
+			m: function mount(target, anchor) {
+				insert(target, select, anchor);
+				append(select, option0);
+				append(select, option1);
+
+				select_option(select, ctx.$mode);
+			},
+
+			p: function update(changed, ctx) {
+				if (changed.$mode) select_option(select, ctx.$mode);
+			},
+
+			d: function destroy(detaching) {
+				if (detaching) {
+					detach(select);
+				}
+
+				dispose();
+			}
+		};
 	}
 
 	// (1:0) <script>  import { onMount }
@@ -14608,8 +14734,116 @@ var app = (function () {
 		};
 	}
 
-	// (57:4) {:then list}
+	// (58:4) {:then list}
 	function create_then_block(ctx) {
+		var if_block_anchor;
+
+		function select_block_type(ctx) {
+			if (ctx.$edit) return create_if_block;
+			return create_else_block;
+		}
+
+		var current_block_type = select_block_type(ctx);
+		var if_block = current_block_type(ctx);
+
+		return {
+			c: function create() {
+				if_block.c();
+				if_block_anchor = empty();
+			},
+
+			m: function mount(target, anchor) {
+				if_block.m(target, anchor);
+				insert(target, if_block_anchor, anchor);
+			},
+
+			p: function update(changed, ctx) {
+				if (current_block_type === (current_block_type = select_block_type(ctx)) && if_block) {
+					if_block.p(changed, ctx);
+				} else {
+					if_block.d(1);
+					if_block = current_block_type(ctx);
+					if (if_block) {
+						if_block.c();
+						if_block.m(if_block_anchor.parentNode, if_block_anchor);
+					}
+				}
+			},
+
+			d: function destroy(detaching) {
+				if_block.d(detaching);
+
+				if (detaching) {
+					detach(if_block_anchor);
+				}
+			}
+		};
+	}
+
+	// (63:4) {:else}
+	function create_else_block(ctx) {
+		var each_1_anchor;
+
+		var each_value_1 = ctx.list;
+
+		var each_blocks = [];
+
+		for (var i = 0; i < each_value_1.length; i += 1) {
+			each_blocks[i] = create_each_block_1(get_each_context_1(ctx, each_value_1, i));
+		}
+
+		return {
+			c: function create() {
+				for (var i = 0; i < each_blocks.length; i += 1) {
+					each_blocks[i].c();
+				}
+
+				each_1_anchor = empty();
+			},
+
+			m: function mount(target, anchor) {
+				for (var i = 0; i < each_blocks.length; i += 1) {
+					each_blocks[i].m(target, anchor);
+				}
+
+				insert(target, each_1_anchor, anchor);
+			},
+
+			p: function update(changed, ctx) {
+				if (changed.listCall || changed.$category) {
+					each_value_1 = ctx.list;
+
+					for (var i = 0; i < each_value_1.length; i += 1) {
+						const child_ctx = get_each_context_1(ctx, each_value_1, i);
+
+						if (each_blocks[i]) {
+							each_blocks[i].p(changed, child_ctx);
+						} else {
+							each_blocks[i] = create_each_block_1(child_ctx);
+							each_blocks[i].c();
+							each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
+						}
+					}
+
+					for (; i < each_blocks.length; i += 1) {
+						each_blocks[i].d(1);
+					}
+					each_blocks.length = each_value_1.length;
+				}
+			},
+
+			d: function destroy(detaching) {
+				destroy_each(each_blocks, detaching);
+
+				if (detaching) {
+					detach(each_1_anchor);
+				}
+			}
+		};
+	}
+
+	// (59:4) {#if $edit}
+	function create_if_block(ctx) {
 		var each_1_anchor;
 
 		var each_value = ctx.list;
@@ -14670,7 +14904,52 @@ var app = (function () {
 		};
 	}
 
-	// (58:8) {#each list as item}
+	// (64:8) {#each list as item}
+	function create_each_block_1(ctx) {
+		var div, input, input_value_value, t0, t1_value = ctx.item.name, t1, dispose;
+
+		return {
+			c: function create() {
+				div = element("div");
+				input = element("input");
+				t0 = space();
+				t1 = text(t1_value);
+				ctx.$$binding_groups[0].push(input);
+				attr(input, "type", "checkbox");
+				input.__value = input_value_value = ctx.item.id;
+				input.value = input.__value;
+				add_location(input, file$1, 64, 17, 1278);
+				add_location(div, file$1, 64, 12, 1273);
+				dispose = listen(input, "change", ctx.input_change_handler_1);
+			},
+
+			m: function mount(target, anchor) {
+				insert(target, div, anchor);
+				append(div, input);
+
+				input.checked = ~ctx.$category.indexOf(input.__value);
+
+				append(div, t0);
+				append(div, t1);
+			},
+
+			p: function update(changed, ctx) {
+				if (changed.$category) input.checked = ~ctx.$category.indexOf(input.__value);
+				input.value = input.__value;
+			},
+
+			d: function destroy(detaching) {
+				if (detaching) {
+					detach(div);
+				}
+
+				ctx.$$binding_groups[0].splice(ctx.$$binding_groups[0].indexOf(input), 1);
+				dispose();
+			}
+		};
+	}
+
+	// (60:8) {#each list as item}
 	function create_each_block(ctx) {
 		var div, input, input_value_value, t0, t1_value = ctx.item.name, t1, dispose;
 
@@ -14678,14 +14957,14 @@ var app = (function () {
 			c: function create() {
 				div = element("div");
 				input = element("input");
-				t0 = text(" - ");
+				t0 = space();
 				t1 = text(t1_value);
 				ctx.$$binding_groups[0].push(input);
 				attr(input, "type", "radio");
 				input.__value = input_value_value = ctx.item.id;
 				input.value = input.__value;
-				add_location(input, file$1, 58, 17, 1078);
-				add_location(div, file$1, 58, 12, 1073);
+				add_location(input, file$1, 60, 17, 1124);
+				add_location(div, file$1, 60, 12, 1119);
 				dispose = listen(input, "change", ctx.input_change_handler);
 			},
 
@@ -14715,7 +14994,7 @@ var app = (function () {
 		};
 	}
 
-	// (55:21)          Loading     {:then list}
+	// (56:21)          Loading     {:then list}
 	function create_pending_block(ctx) {
 		var t;
 
@@ -14739,7 +15018,9 @@ var app = (function () {
 	}
 
 	function create_fragment$1(ctx) {
-		var div, h30, t1, select0, option0, option1, t4, select1, option2, option3, t7, h31, t9, promise, dispose;
+		var div, h30, t1, select, option0, option1, t4, t5, h31, t7, promise, dispose;
+
+		var if_block = (ctx.$edit) && create_if_block_1(ctx);
 
 		let info = {
 			ctx,
@@ -14759,51 +15040,35 @@ var app = (function () {
 				h30 = element("h3");
 				h30.textContent = "Type";
 				t1 = space();
-				select0 = element("select");
+				select = element("select");
 				option0 = element("option");
 				option0.textContent = "Personal";
 				option1 = element("option");
 				option1.textContent = "Collective";
 				t4 = space();
-				select1 = element("select");
-				option2 = element("option");
-				option2.textContent = "+1";
-				option3 = element("option");
-				option3.textContent = "-1";
-				t7 = space();
+				if (if_block) if_block.c();
+				t5 = space();
 				h31 = element("h3");
 				h31.textContent = "Category";
-				t9 = space();
+				t7 = space();
 
 				info.block.c();
 				h30.className = "svelte-14kxoct";
-				add_location(h30, file$1, 41, 4, 662);
+				add_location(h30, file$1, 41, 4, 667);
 				option0.__value = true;
 				option0.value = option0.__value;
-				add_location(option0, file$1, 43, 8, 720);
+				add_location(option0, file$1, 43, 8, 725);
 				option1.__value = false;
 				option1.value = option1.__value;
-				add_location(option1, file$1, 44, 8, 767);
-				if (ctx.$personal === void 0) add_render_callback(() => ctx.select0_change_handler.call(select0));
-				add_location(select0, file$1, 42, 4, 680);
-				option2.__value = true;
-				option2.value = option2.__value;
-				add_location(option2, file$1, 49, 8, 865);
-				option3.__value = false;
-				option3.value = option3.__value;
-				add_location(option3, file$1, 50, 8, 906);
-				if (ctx.$mode === void 0) add_render_callback(() => ctx.select1_change_handler.call(select1));
-				add_location(select1, file$1, 48, 4, 829);
+				add_location(option1, file$1, 44, 8, 772);
+				if (ctx.$personal === void 0) add_render_callback(() => ctx.select_change_handler.call(select));
+				add_location(select, file$1, 42, 4, 685);
 				h31.className = "svelte-14kxoct";
-				add_location(h31, file$1, 53, 4, 959);
+				add_location(h31, file$1, 54, 4, 989);
 				div.id = "list";
 				div.className = "svelte-14kxoct";
-				add_location(div, file$1, 40, 0, 642);
-
-				dispose = [
-					listen(select0, "change", ctx.select0_change_handler),
-					listen(select1, "change", ctx.select1_change_handler)
-				];
+				add_location(div, file$1, 40, 0, 647);
+				dispose = listen(select, "change", ctx.select_change_handler);
 			},
 
 			l: function claim(nodes) {
@@ -14814,22 +15079,17 @@ var app = (function () {
 				insert(target, div, anchor);
 				append(div, h30);
 				append(div, t1);
-				append(div, select0);
-				append(select0, option0);
-				append(select0, option1);
+				append(div, select);
+				append(select, option0);
+				append(select, option1);
 
-				select_option(select0, ctx.$personal);
+				select_option(select, ctx.$personal);
 
 				append(div, t4);
-				append(div, select1);
-				append(select1, option2);
-				append(select1, option3);
-
-				select_option(select1, ctx.$mode);
-
-				append(div, t7);
+				if (if_block) if_block.m(div, null);
+				append(div, t5);
 				append(div, h31);
-				append(div, t9);
+				append(div, t7);
 
 				info.block.m(div, info.anchor = null);
 				info.mount = () => div;
@@ -14838,8 +15098,21 @@ var app = (function () {
 
 			p: function update(changed, new_ctx) {
 				ctx = new_ctx;
-				if (changed.$personal) select_option(select0, ctx.$personal);
-				if (changed.$mode) select_option(select1, ctx.$mode);
+				if (changed.$personal) select_option(select, ctx.$personal);
+
+				if (ctx.$edit) {
+					if (if_block) {
+						if_block.p(changed, ctx);
+					} else {
+						if_block = create_if_block_1(ctx);
+						if_block.c();
+						if_block.m(div, t5);
+					}
+				} else if (if_block) {
+					if_block.d(1);
+					if_block = null;
+				}
+
 				info.ctx = ctx;
 
 				if (promise !== (promise = ctx.listCall) && handle_promise(promise, info)) ; else {
@@ -14855,19 +15128,23 @@ var app = (function () {
 					detach(div);
 				}
 
+				if (if_block) if_block.d();
+
 				info.block.d();
 				info = null;
 
-				run_all(dispose);
+				dispose();
 			}
 		};
 	}
 
 	function instance$1($$self, $$props, $$invalidate) {
-		let $personal, $mode, $category;
+		let $personal, $edit, $mode, $category;
 
 		validate_store(personal, 'personal');
 		subscribe($$self, personal, $$value => { $personal = $$value; $$invalidate('$personal', $personal); });
+		validate_store(edit, 'edit');
+		subscribe($$self, edit, $$value => { $edit = $$value; $$invalidate('$edit', $edit); });
 		validate_store(mode, 'mode');
 		subscribe($$self, mode, $$value => { $mode = $$value; $$invalidate('$mode', $mode); });
 		validate_store(category, 'category');
@@ -14890,11 +15167,11 @@ var app = (function () {
 
 		const $$binding_groups = [[]];
 
-		function select0_change_handler() {
+		function select_change_handler() {
 			personal.set(select_value(this));
 		}
 
-		function select1_change_handler() {
+		function select_change_handler_1() {
 			mode.set(select_value(this));
 		}
 
@@ -14902,14 +15179,20 @@ var app = (function () {
 			category.set(this.__value);
 		}
 
+		function input_change_handler_1() {
+			category.set(get_binding_group_value($$binding_groups[0]));
+		}
+
 		return {
 			listCall,
 			$personal,
+			$edit,
 			$mode,
 			$category,
-			select0_change_handler,
-			select1_change_handler,
+			select_change_handler,
+			select_change_handler_1,
 			input_change_handler,
+			input_change_handler_1,
 			$$binding_groups
 		};
 	}
@@ -14984,10 +15267,26 @@ var app = (function () {
 		};
 	}
 
+	function instance$2($$self, $$props, $$invalidate) {
+		let $edit;
+
+		validate_store(edit, 'edit');
+		subscribe($$self, edit, $$value => { $edit = $$value; $$invalidate('$edit', $edit); });
+
+		
+
+		if(location.hash === '#edit') 
+			{ $edit = true; edit.set($edit); }
+		else
+			{ $edit = false; edit.set($edit); }
+
+		return {};
+	}
+
 	class App extends SvelteComponentDev {
 		constructor(options) {
 			super(options);
-			init(this, options, null, create_fragment$2, safe_not_equal, []);
+			init(this, options, instance$2, create_fragment$2, safe_not_equal, []);
 		}
 	}
 
